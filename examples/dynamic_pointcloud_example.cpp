@@ -28,6 +28,7 @@
 
 #include <cstdlib>
 #include <ctime>
+#include <chrono>
 #include <iostream>
 #include <nanoflann.hpp>
 
@@ -53,6 +54,7 @@ void kdtree_demo(const size_t N)
 
     num_t query_pt[3] = {0.5, 0.5, 0.5};
 
+    auto start = std::chrono::steady_clock::now();
     // add points in chunks at a time
     size_t chunk_size = 100;
     for (size_t i = 0; i < N; i = i + chunk_size)
@@ -61,6 +63,9 @@ void kdtree_demo(const size_t N)
         // Inserts all points from [i, end]
         index.addPoints(i, end);
     }
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> diff = end - start;
+    std::cout << "Adding points took " << diff.count() << " s" << std::endl;
 
     // remove a point
     size_t removePointIndex = N - 1;
