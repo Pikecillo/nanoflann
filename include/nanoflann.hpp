@@ -54,6 +54,7 @@
 #include <limits>  // std::reference_wrapper
 #include <ostream>
 #include <stdexcept>
+#include <unordered_map>
 #include <vector>
 
 /** Library version: 0xMmP (M=Major,m=minor,P=patch) */
@@ -1705,7 +1706,7 @@ class KDTreeSingleIndexDynamicAdaptor_
 
     KDTreeSingleIndexAdaptorParams index_params;
 
-    std::vector<int>& treeIndex;
+    std::unordered_map<int, int>& treeIndex;
 
     Distance distance;
 
@@ -1749,7 +1750,7 @@ class KDTreeSingleIndexDynamicAdaptor_
      */
     KDTreeSingleIndexDynamicAdaptor_(
         const Dimension dimensionality, const DatasetAdaptor& inputData,
-        std::vector<int>&                     treeIndex_,
+        std::unordered_map<int, int>&                     treeIndex_,
         const KDTreeSingleIndexAdaptorParams& params =
             KDTreeSingleIndexAdaptorParams())
         : dataset(inputData),
@@ -2085,7 +2086,7 @@ class KDTreeSingleIndexDynamicAdaptor
      */
     const DatasetAdaptor& dataset;  //!< The source of our data
 
-    std::vector<int>
+    std::unordered_map<int, int>
         treeIndex;  //!< treeIndex[idx] is the index of tree in which
                     //!< point at idx is stored. treeIndex[idx]=-1
                     //!< means that point has been removed.
@@ -2174,12 +2175,15 @@ class KDTreeSingleIndexDynamicAdaptor
     void addPoints(AccessorType start, AccessorType end)
     {
         Size count = end - start + 1;
-        treeIndex.resize(treeIndex.size() + count);
+
         for (AccessorType idx = start; idx <= end; idx++)
         {
+            const auto it = treeIndex.find(idx);
+            if(it != treeIndex.end() && it->second != -1) continue;
+
             int pos = First0Bit(pointCount);
             index[pos].vAcc.clear();
-            treeIndex[pointCount] = pos;
+            treeIndex[idx] = pos;
             for (int i = 0; i < pos; i++)
             {
                 for (int j = 0; j < static_cast<int>(index[i].vAcc.size()); j++)
@@ -2200,8 +2204,10 @@ class KDTreeSingleIndexDynamicAdaptor
     /** Remove a point from the set (Lazy Deletion) */
     void removePoint(size_t idx)
     {
-        if (idx >= pointCount) return;
-        treeIndex[idx] = -1;
+        auto it = treeIndex.find(idx);
+        if(it == treeIndex.end() || it->second == -1) return;
+        it->second = -1;
+        pointCount--;
     }
 
     /**
