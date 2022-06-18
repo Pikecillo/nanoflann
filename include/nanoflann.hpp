@@ -2171,6 +2171,33 @@ class KDTreeSingleIndexDynamicAdaptor
             Distance, DatasetAdaptor, DIM, AccessorType>&) = delete;
 
     /** Add points to the set, Inserts all points from [start, end] */
+    void addPointsOld(AccessorType start, AccessorType end)
+    {
+        Size count = end - start + 1;
+        treeIndex.resize(treeIndex.size() + count);
+        for (AccessorType idx = start; idx <= end; idx++)
+        {
+            int pos = First0Bit(pointCount);
+            index[pos].vAcc.clear();
+            treeIndex[pointCount] = pos;
+            for (int i = 0; i < pos; i++)
+            {
+                for (int j = 0; j < static_cast<int>(index[i].vAcc.size()); j++)
+                {
+                    index[pos].vAcc.push_back(index[i].vAcc[j]);
+                    if (treeIndex[index[i].vAcc[j]] != -1)
+                        treeIndex[index[i].vAcc[j]] = pos;
+                }
+                index[i].vAcc.clear();
+                index[i].freeIndex(index[i]);
+            }
+            index[pos].vAcc.push_back(idx);
+            index[pos].buildIndex();
+            pointCount++;
+        }
+    }
+
+    /** Add points to the set, Inserts all points from [start, end] */
     void addPoints(AccessorType start, AccessorType end)
     {
         const Size count = end - start + 1;
