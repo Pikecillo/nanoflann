@@ -26,6 +26,7 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *************************************************************************/
 
+#include <chrono>
 #include <cstdlib>
 #include <ctime>
 #include <iostream>
@@ -44,14 +45,16 @@ void kdtree_demo(const size_t N)
         PointCloud<num_t>, 3 /* dim */
         >;
 
-    dump_mem_usage();
-
-    my_kd_tree_t index(3 /*dim*/, cloud, {10 /* max leaf */});
+    my_kd_tree_t index1(3 /*dim*/, cloud, {10 /* max leaf */});
+    my_kd_tree_t index2(3 /*dim*/, cloud, {10 /* max leaf */});
 
     // Generate points:
     generateRandomPointCloud(cloud, N);
 
     num_t query_pt[3] = {0.5, 0.5, 0.5};
+    cloud.pts[N - 1] = {query_pt[0], query_pt[1], query_pt[2]};
+
+    auto start = std::chrono::steady_clock::now();
 
     // add points in chunks at a time
     size_t chunk_size = 100;
@@ -59,14 +62,37 @@ void kdtree_demo(const size_t N)
     {
         size_t end = std::min<size_t>(i + chunk_size, N - 1);
         // Inserts all points from [i, end]
-        index.addPoints(i, end);
+        index1.addPoints(i, end);
     }
 
     // remove a point
     size_t removePointIndex = N - 1;
-    index.removePoint(removePointIndex);
+    index1.removePoint(removePointIndex);
+    index1.addPoints(N - 1, N - 1);
 
-    dump_mem_usage();
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> diff = end - start;
+
+    std::cout << "Old " << diff.count() << "sec" << std::endl;
+
+    start = std::chrono::steady_clock::now();
+    // add points in chunks at a time
+    for (size_t i = 0; i < N; i = i + chunk_size)
+    {
+        size_t end = std::min<size_t>(i + chunk_size, N - 1);
+        // Inserts all points from [i, end]
+        index2.addPointsFix(i, end);
+    }
+
+    // remove a point
+    index2.removePointFix(removePointIndex);
+    index2.addPointsFix(removePointIndex, removePointIndex);
+
+    end = std::chrono::steady_clock::now();
+    diff = end - start;
+
+    std::cout << "Fix " << diff.count() << "sec" << std::endl;
+
     {
         std::cout << "Searching for 1 element..." << std::endl;
         // do a knn search
@@ -75,15 +101,11 @@ void kdtree_demo(const size_t N)
         num_t                          out_dist_sqr;
         nanoflann::KNNResultSet<num_t> resultSet(num_results);
         resultSet.init(&ret_index, &out_dist_sqr);
-        index.findNeighbors(resultSet, query_pt, {10});
+        index2.findNeighbors(resultSet, query_pt, {10});
 
-        std::cout << "knnSearch(nn=" << num_results << "): \n";
-        std::cout << "ret_index=" << ret_index
-                  << " out_dist_sqr=" << out_dist_sqr << std::endl;
         std::cout << "point: (" << cloud.pts[ret_index].x << ", "
                   << cloud.pts[ret_index].y << ", " << cloud.pts[ret_index].z
                   << ")" << std::endl;
-        std::cout << std::endl;
     }
     {
         // do a knn search searching for more than one result
@@ -94,20 +116,7 @@ void kdtree_demo(const size_t N)
         num_t                          out_dist_sqr[num_results];
         nanoflann::KNNResultSet<num_t> resultSet(num_results);
         resultSet.init(ret_index, out_dist_sqr);
-        index.findNeighbors(resultSet, query_pt, nanoflann::SearchParams(10));
-
-        std::cout << "knnSearch(nn=" << num_results << "): \n";
-        std::cout << "Results: " << std::endl;
-        for (size_t i = 0; i < resultSet.size(); ++i)
-        {
-            std::cout << "#" << i << ",\t"
-                      << "index: " << ret_index[i] << ",\t"
-                      << "dist: " << out_dist_sqr[i] << ",\t"
-                      << "point: (" << cloud.pts[ret_index[i]].x << ", "
-                      << cloud.pts[ret_index[i]].y << ", "
-                      << cloud.pts[ret_index[i]].z << ")" << std::endl;
-        }
-        std::cout << std::endl;
+        index2.findNeighbors(resultSet, query_pt, nanoflann::SearchParams(10));
     }
     {
         // Unsorted radius search:
@@ -117,16 +126,7 @@ void kdtree_demo(const size_t N)
         nanoflann::RadiusResultSet<num_t, size_t> resultSet(
             radius, indices_dists);
 
-        index.findNeighbors(resultSet, query_pt, nanoflann::SearchParams());
-
-        // Get worst (furthest) point, without sorting:
-        std::pair<size_t, num_t> worst_pair = resultSet.worst_item();
-        std::cout << "Worst pair: idx=" << worst_pair.first
-                  << " dist=" << worst_pair.second << std::endl;
-        std::cout << "point: (" << cloud.pts[worst_pair.first].x << ", "
-                  << cloud.pts[worst_pair.first].y << ", "
-                  << cloud.pts[worst_pair.first].z << ")" << std::endl;
-        std::cout << std::endl;
+        index1.findNeighbors(resultSet, query_pt, nanoflann::SearchParams());
     }
 }
 

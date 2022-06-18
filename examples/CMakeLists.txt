@@ -16,6 +16,7 @@ DEFINE_EXAMPLE(SO3_adaptor_example)
 DEFINE_EXAMPLE(SO2_adaptor_example)
 DEFINE_EXAMPLE(saveload_example)
 DEFINE_EXAMPLE(vector_of_vectors_example)
+DEFINE_EXAMPLE(benchmark_fix)
 
 IF(EIGEN3_FOUND)
 	DEFINE_EXAMPLE(matrix_example)

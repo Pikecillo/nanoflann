@@ -2154,7 +2154,8 @@ class KDTreeSingleIndexDynamicAdaptor
         const KDTreeSingleIndexAdaptorParams& params =
             KDTreeSingleIndexAdaptorParams(),
         const size_t maximumPointCount = 1000000000U)
-        : dataset(inputData), index_params(params), distance(inputData)
+        : dataset(inputData), index_params(params), distance(inputData)/*,
+        removed(maximumPointCount, false)*/
     {
         treeCount  = static_cast<size_t>(std::log2(maximumPointCount)) + 1;
         pointCount = 0U;
@@ -2173,6 +2174,58 @@ class KDTreeSingleIndexDynamicAdaptor
             Distance, DatasetAdaptor, DIM, AccessorType>&) = delete;
 
     /** Add points to the set, Inserts all points from [start, end] */
+    void addPointsFix(AccessorType start, AccessorType end)
+    {
+        Size count = end - start + 1;
+        treeIndex.resize(treeIndex.size() + count);
+        int maxPos = -1;
+        for (AccessorType idx = start; idx <= end; idx++)
+        {
+            int pos = First0Bit(pointCount);
+            index[pos].vAcc.clear();
+            treeIndex[pointCount] = pos;
+
+            maxPos = std::max(maxPos, pos);
+
+            const auto it = removedPoints.find(idx);
+            if(it != removedPoints.end())
+            {
+                removedPoints.erase(it);
+                treeIndex[idx] = pos;
+            }
+
+            for (int i = 0; i < pos; i++)
+            {
+                for (int j = 0; j < static_cast<int>(index[i].vAcc.size()); j++)
+                {
+                    index[pos].vAcc.push_back(index[i].vAcc[j]);
+                    if (treeIndex[index[i].vAcc[j]] != -1)
+                        treeIndex[index[i].vAcc[j]] = pos;
+                }
+                index[i].vAcc.clear();
+            }
+            index[pos].vAcc.push_back(idx);
+            pointCount++;
+        }
+
+        for(int i = 0; i <= maxPos; i++) {
+            index[i].freeIndex(index[i]);
+            if(!index[i].vAcc.empty())
+                index[i].buildIndex();
+        }
+    }
+
+    
+
+    /** Remove a point from the set (Lazy Deletion) */
+    void removePointFix(size_t idx)
+    {
+        if (idx >= pointCount) return;
+        removedPoints.insert(idx);
+        treeIndex[idx] = -1;
+    }
+
+    /** Add points to the set, Inserts all points from [start, end] */
     void addPoints(AccessorType start, AccessorType end)
     {
         Size count = end - start + 1;
@@ -2182,13 +2235,6 @@ class KDTreeSingleIndexDynamicAdaptor
             int pos = First0Bit(pointCount);
             index[pos].vAcc.clear();
             treeIndex[pointCount] = pos;
-
-            const auto it = removedPoints.find(idx);
-            if(it != removedPoints.end())
-            {
-                removedPoints.erase(it);
-                treeIndex[idx] = pos;
-            }
 
             for (int i = 0; i < pos; i++)
             {
@@ -2211,7 +2257,6 @@ class KDTreeSingleIndexDynamicAdaptor
     void removePoint(size_t idx)
     {
         if (idx >= pointCount) return;
-        removedPoints.insert(idx);
         treeIndex[idx] = -1;
     }
 
